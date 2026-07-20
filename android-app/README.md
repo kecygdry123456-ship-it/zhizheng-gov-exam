@@ -1,6 +1,12 @@
 # 知政公考 Android
 
-这是现有 Next.js 系统的独立 Android 客户端。App 加载同源 Web 地址，因此网页端和手机端使用同一套页面、API、Cookie 会话与业务数据。1.3.1 版增加智能规划本地通知，并保留独立的固定每日提醒；同一计划内容更新时会保留已送达日期，避免当天重复通知。
+这是现有 Next.js 系统的独立 Android 客户端。App 加载同源 Web 地址，因此网页端和手机端使用同一套页面、API、Cookie 会话与业务数据。1.4.0 版同步每日签到目标、动态题目/任务数量和本周学习统计；智能规划本地通知与固定每日提醒仍由原生层负责，同一计划内容更新时会保留已送达日期，避免当天重复通知。
+
+## 与网页端的配套功能
+
+- 登录后直接进入云端学习首页，签到按钮调用 `/api/daily-check-in`，根据近期学习记录生成当天题目数和系统验收任务数目标。
+- 网页侧栏显示当天题目与任务双进度；顶部显示本周答题、本周签到和本周系统验收任务三个独立指标。
+- App 不复制题库或模型逻辑，Cookie 会话、模型目标和学习统计与网页端实时共享；更换服务器时仍会通过 `/api/health` 检查数据库连接。
 
 ## 备考通知
 
@@ -21,7 +27,7 @@
 - 正式环境配置强随机 `SESSION_SECRET`，不要使用仓库默认值。
 - 问题素材的 `/question-materials/...` 路径须能由同一域名访问。
 
-首次启动直接打开预置 HTTPS 服务器。更换服务器时，App 会请求 `/api/health` 验证服务和数据库可用后再保存。覆盖安装 1.3.1 时会把 1.2.0 保存的官方 HTTP 地址迁移为 HTTPS，并保留同一主机下的 Cookie 会话。进入业务页面后 App 不叠加原生标题栏；在网页根页面按 Android 返回键可刷新、更换服务器、清除登录会话或退出。
+首次启动直接打开预置 HTTPS 服务器。更换服务器时，App 会请求 `/api/health` 验证服务和数据库可用后再保存。覆盖安装旧版本时会把保存的官方 HTTP 地址迁移为 HTTPS，并保留同一主机下的 Cookie 会话。进入业务页面后 App 不叠加原生标题栏；在网页根页面按 Android 返回键可刷新、更换服务器、清除登录会话或退出。
 
 ## 构建
 
@@ -31,4 +37,4 @@ $env:ANDROID_SDK_ROOT="$env:LOCALAPPDATA\Android\Sdk"
 .\gradlew.bat test lint assembleDebug assembleRelease
 ```
 
-Gradle 原始输出位于 `app/build/outputs/apk/`。本项目交付的可安装包位于根目录 `dist/zhizheng-govexam-1.3.1.apk`。该包沿用 1.2.0 的本机 Android 调试证书，以支持当前测试安装原位升级；正式上架前应改用独立的长期 Release keystore，并通过本机安全配置传入口令，禁止提交密钥和口令。
+Gradle 原始输出位于 `app/build/outputs/apk/`。本项目交付的可安装测试包位于根目录 `dist/zhizheng-govexam-1.4.0-debug.apk`。该包使用本机 Debug 证书，适合验收和内部安装；正式上架前应改用独立的长期 Release keystore，并通过本机安全配置传入口令，禁止提交密钥和口令。

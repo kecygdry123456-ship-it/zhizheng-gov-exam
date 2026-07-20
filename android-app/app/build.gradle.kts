@@ -12,8 +12,8 @@ android {
         applicationId = "cn.zhizheng.exam"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.3.1"
+        versionCode = 7
+        versionName = "1.4.0"
         buildConfigField("String", "DEFAULT_WEB_URL", "\"https://8.163.38.217\"")
         buildConfigField("String", "LEGACY_WEB_URL", "\"http://8.163.38.217\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

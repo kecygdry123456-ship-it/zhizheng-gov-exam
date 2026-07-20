@@ -66,7 +66,7 @@
 
 ## APK 版本与升级验收
 
-- 本次功能版本使用 `versionCode = 6`、`versionName = "1.3.1"`，包名保持 `cn.zhizheng.exam`，以便从 1.2.0/1.3.0 原位升级。
+- 本次功能版本使用 `versionCode = 7`、`versionName = "1.4.0"`，包名保持 `cn.zhizheng.exam`，以便从 1.3.1 原位升级。
 - 用 1.2.0 安装包建立登录会话和每日提醒，再覆盖安装新包；账号 Cookie、服务器地址和原提醒开关不得丢失。
 - 新包首次读取旧版单日提醒设置时应完成兼容迁移；没有智能计划快照时不得凭空产生计划通知。
 - Debug 与 Release 分别执行单元测试、Lint 和打包；最终交付 APK 应核对 `versionCode`、`versionName`、applicationId 和签名证书。
