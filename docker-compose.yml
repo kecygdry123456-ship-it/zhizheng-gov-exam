@@ -1,0 +1,118 @@
+name: zhizheng-gov-exam
+
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gov_exam
+      POSTGRES_USER: gov_exam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在生产环境文件中设置 POSTGRES_PASSWORD}
+    volumes:
+      - gov_exam_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gov_exam -d gov_exam"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  migrate:
+    build:
+      context: .
+      target: migration
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    restart: "no"
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?请设置容器网络内使用的 DATABASE_URL}
+      APP_AUTO_SEED: ${APP_AUTO_SEED:-0}
+    networks:
+      - backend
+
+  app:
+    build:
+      context: .
+      target: runner
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?请设置容器网络内使用的 DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?请在生产环境文件中设置 SESSION_SECRET}
+      MODEL_CONFIG_ENCRYPTION_KEY: ${MODEL_CONFIG_ENCRYPTION_KEY:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      MODEL_REQUEST_TIMEOUT_MS: ${MODEL_REQUEST_TIMEOUT_MS:-45000}
+      MODEL_EVALUATION_DAILY_LIMIT: ${MODEL_EVALUATION_DAILY_LIMIT:-50}
+      MODEL_EVALUATION_GLOBAL_DAILY_LIMIT: ${MODEL_EVALUATION_GLOBAL_DAILY_LIMIT:-1000}
+      MODEL_LEARNING_ANALYSIS_DAILY_LIMIT: ${MODEL_LEARNING_ANALYSIS_DAILY_LIMIT:-10}
+      MODEL_LEARNING_ANALYSIS_GLOBAL_DAILY_LIMIT: ${MODEL_LEARNING_ANALYSIS_GLOBAL_DAILY_LIMIT:-300}
+      MODEL_DAILY_CHECK_IN_DAILY_LIMIT: ${MODEL_DAILY_CHECK_IN_DAILY_LIMIT:-5}
+      MODEL_DAILY_CHECK_IN_GLOBAL_DAILY_LIMIT: ${MODEL_DAILY_CHECK_IN_GLOBAL_DAILY_LIMIT:-500}
+      ALLOW_PRIVATE_MODEL_BASE_URL: ${ALLOW_PRIVATE_MODEL_BASE_URL:-0}
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    volumes:
+      - "${QUESTION_MATERIALS_PATH:-./public/question-materials}:/app/public/question-materials:ro"
+      - "${QUESTION_IMAGES_PATH:-./public/question-images}:/app/public/question-images:ro"
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tools:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: migration
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?请设置容器网络内使用的 DATABASE_URL}
+      QUESTION_PROVINCES: ${QUESTION_PROVINCES:-}
+      QUESTION_PAPER_LIMIT: ${QUESTION_PAPER_LIMIT:-}
+      QUESTION_REQUEST_INTERVAL_MS: ${QUESTION_REQUEST_INTERVAL_MS:-1000}
+    volumes:
+      - "${QUESTION_MATERIALS_PATH:-./public/question-materials}:/app/public/question-materials"
+      - "${QUESTION_IMAGES_PATH:-./public/question-images}:/app/public/question-images"
+    networks:
+      - frontend
+      - backend
+
+networks:
+  frontend:
+  backend:
+    internal: true
+
+volumes:
+  gov_exam_data:

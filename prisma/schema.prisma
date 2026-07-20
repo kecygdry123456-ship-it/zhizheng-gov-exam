@@ -1,0 +1,423 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum QuestionStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum AttemptMode {
+  PRACTICE
+  EXAM
+}
+
+enum TrainingEvaluationStatus {
+  PENDING
+  EVALUATING
+  READY
+  FALLBACK
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  name               String
+  email              String              @unique
+  passwordHash       String
+  role               Role                @default(STUDENT)
+  targetExam         String?             @default("2027 国考")
+  createdAt          DateTime            @default(now())
+  attempts           Attempt[]
+  favorites          Favorite[]
+  essaySubmissions   EssaySubmission[]
+  studyPlans         StudyPlan[]
+  weeklyStudyPlans   WeeklyStudyPlan[]
+  trainingPreference TrainingPreference?
+  examSessions       ExamSession[]
+  practiceSessions   PracticeSession[]
+  trainingReports    TrainingReport[]
+  dailyCheckIns      DailyCheckIn[]
+}
+
+model DailyCheckIn {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkInDate  DateTime @db.Date
+  questionGoal Int
+  taskGoal     Int
+  goalSummary  String
+  source       String   @default("DATA_RULES")
+  generatedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, checkInDate])
+  @@index([userId, createdAt])
+}
+
+model EssayMaterial {
+  id        String          @id @default(cuid())
+  title     String
+  content   String
+  year      Int?
+  topic     String
+  createdAt DateTime        @default(now())
+  questions EssayQuestion[]
+}
+
+model EssayQuestion {
+  id              String            @id @default(cuid())
+  materialId      String
+  material        EssayMaterial     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  type            String
+  prompt          String
+  wordLimit       Int
+  referenceAnswer String
+  scoringPoints   Json
+  createdAt       DateTime          @default(now())
+  submissions     EssaySubmission[]
+}
+
+model EssaySubmission {
+  id               String        @id @default(cuid())
+  userId           String
+  questionId       String
+  studyPlanId      String?
+  studyPlanTaskKey String?
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question         EssayQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  studyPlan        StudyPlan?    @relation(fields: [studyPlanId], references: [id], onDelete: SetNull)
+  content          String
+  wordCount        Int
+  score            Int
+  feedback         Json
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([studyPlanId, studyPlanTaskKey, createdAt])
+}
+
+model StudyPlan {
+  id               String                   @id @default(cuid())
+  userId           String
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title            String
+  source           String
+  summary          String
+  tasks            Json
+  strategy         Json?
+  schemaVersion    Int                      @default(1)
+  inputSnapshot    Json?
+  generationMeta   Json?
+  generatedAt      DateTime                 @default(now())
+  expiresAt        DateTime
+  completedAt      DateTime?
+  previousPlanId   String?                  @unique
+  previousPlan     StudyPlan?               @relation("StudyPlanContinuation", fields: [previousPlanId], references: [id], onDelete: SetNull)
+  nextPlan         StudyPlan?               @relation("StudyPlanContinuation")
+  checkIns         StudyPlanCheckIn[]
+  evidenceClaims   StudyPlanEvidenceClaim[]
+  essaySubmissions EssaySubmission[]
+  examSessions     ExamSession[]
+  practiceSessions PracticeSession[]
+  trainingReports  TrainingReport[]
+
+  @@index([userId, generatedAt])
+  @@index([userId, completedAt])
+}
+
+model WeeklyStudyPlan {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  summary       String
+  goals         Json
+  strategy      Json
+  source        String
+  inputSnapshot Json?
+  generatedAt   DateTime @default(now())
+  expiresAt     DateTime
+  schemaVersion Int      @default(1)
+
+  @@index([userId, generatedAt])
+}
+
+model StudyPlanCheckIn {
+  id                 String    @id @default(cuid())
+  planId             String
+  plan               StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  taskKey            String
+  taskIndex          Int
+  taskTitle          String
+  targetSnapshot     String
+  checkpointSnapshot String
+  acceptanceMethod   String    @default("SELF_CONFIRMED")
+  evidenceType       String?
+  evidenceId         String?
+  evidenceKey        String?   @unique
+  criteriaSnapshot   Json?
+  actualSnapshot     Json?
+  specHash           String?
+  completedAt        DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([planId, taskKey])
+  @@unique([planId, taskIndex])
+  @@index([planId, completedAt])
+}
+
+model StudyPlanEvidenceClaim {
+  id           String    @id @default(cuid())
+  planId       String
+  plan         StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  taskKey      String
+  taskIndex    Int
+  evidenceType String
+  evidenceId   String
+  evidenceKey  String    @unique
+  specHash     String
+  claimedAt    DateTime  @default(now())
+
+  @@index([planId, taskKey, claimedAt])
+}
+
+model ModelConfig {
+  id              String   @id @default("default")
+  apiKeyEncrypted String?
+  model           String?
+  baseUrl         String   @default("https://api.openai.com/v1")
+  enabled         Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+model ModelUsageDaily {
+  key          String   @id
+  usageDate    DateTime @db.Date
+  scope        String
+  userId       String?
+  purpose      String
+  requestCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([usageDate, purpose])
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  sort      Int        @default(0)
+  questions Question[]
+}
+
+model Question {
+  id              String            @id @default(cuid())
+  categoryId      String
+  category        Category          @relation(fields: [categoryId], references: [id])
+  type            String
+  stem            String
+  options         Json
+  answer          Int
+  explanation     String
+  difficulty      String            @default("基础")
+  difficultyScore Float             @default(5)
+  status          QuestionStatus    @default(PUBLISHED)
+  source          String?
+  sourceUrl       String?
+  externalKey     String?           @unique
+  paperTitle      String?
+  year            Int?
+  region          String?
+  materialId      String?
+  material        QuestionMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  materialOrder   Int?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  attempts        Attempt[]
+  favorites       Favorite[]
+
+  @@index([status, categoryId])
+  @@index([status, difficultyScore])
+  @@index([region, year])
+  @@index([materialId, materialOrder])
+}
+
+model QuestionMaterial {
+  id          String     @id @default(cuid())
+  externalKey String     @unique
+  title       String
+  content     String
+  blocks      Json
+  sourceUrl   String?
+  paperTitle  String?
+  year        Int?
+  region      String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  questions   Question[]
+
+  @@index([region, year])
+}
+
+model TrainingPreference {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practiceCount          Int      @default(20)
+  practiceCategory       String?
+  practiceScopes         Json     @default("[]")
+  practiceDifficultyMode String   @default("CUSTOM")
+  practiceMinDifficulty  Float    @default(1)
+  practiceMaxDifficulty  Float    @default(10)
+  examCount              Int      @default(50)
+  examDuration           Int      @default(60)
+  examDifficultyMode     String   @default("CUSTOM")
+  examMinDifficulty      Float    @default(1)
+  examMaxDifficulty      Float    @default(10)
+  updatedAt              DateTime @updatedAt
+  createdAt              DateTime @default(now())
+}
+
+model ExamSession {
+  id                    String          @id @default(cuid())
+  userId                String
+  studyPlanId           String?
+  studyPlanTaskKey      String?
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyPlan             StudyPlan?      @relation(fields: [studyPlanId], references: [id], onDelete: SetNull)
+  status                String          @default("IN_PROGRESS")
+  questionIds           Json
+  answers               Json
+  questionDurations     Json            @default("{}")
+  questionMeta          Json            @default("[]")
+  config                Json
+  paperDifficulty       Float
+  durationMinutes       Int
+  startedAt             DateTime        @default(now())
+  pausedAt              DateTime?
+  pausedDurationSeconds Int             @default(0)
+  submittedAt           DateTime?
+  updatedAt             DateTime        @updatedAt
+  report                TrainingReport?
+
+  @@index([userId, status, updatedAt])
+  @@index([studyPlanId, studyPlanTaskKey, startedAt])
+}
+
+model PracticeSession {
+  id                    String          @id @default(cuid())
+  userId                String
+  studyPlanId           String?
+  studyPlanTaskKey      String?
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyPlan             StudyPlan?      @relation(fields: [studyPlanId], references: [id], onDelete: SetNull)
+  status                String          @default("IN_PROGRESS")
+  questionIds           Json
+  answers               Json            @default("{}")
+  questionDurations     Json            @default("{}")
+  config                Json
+  paperDifficulty       Float
+  currentIndex          Int             @default(0)
+  startedAt             DateTime        @default(now())
+  pausedAt              DateTime?
+  pausedDurationSeconds Int             @default(0)
+  completedAt           DateTime?
+  updatedAt             DateTime        @updatedAt
+  attempts              Attempt[]
+  report                TrainingReport?
+
+  @@index([userId, status, updatedAt])
+  @@index([studyPlanId, studyPlanTaskKey, startedAt])
+}
+
+model TrainingReport {
+  id                      String                   @id @default(cuid())
+  userId                  String
+  studyPlanId             String?
+  studyPlanTaskKey        String?
+  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyPlan               StudyPlan?               @relation(fields: [studyPlanId], references: [id], onDelete: SetNull)
+  examSessionId           String?                  @unique
+  examSession             ExamSession?             @relation(fields: [examSessionId], references: [id], onDelete: SetNull)
+  practiceSessionId       String?                  @unique
+  practiceSession         PracticeSession?         @relation(fields: [practiceSessionId], references: [id], onDelete: SetNull)
+  clientKey               String
+  mode                    AttemptMode
+  title                   String
+  templateId              String?
+  questionIds             Json
+  attemptIds              Json
+  questionDurations       Json
+  durationSeconds         Int
+  inactiveDurationSeconds Int                      @default(0)
+  total                   Int
+  answered                Int
+  correct                 Int
+  accuracy                Float
+  difficultyScore         Float
+  sections                Json
+  evaluationStatus        TrainingEvaluationStatus @default(PENDING)
+  evaluationSource        String?
+  evaluationClaimedAt     DateTime?
+  overallEvaluation       String?
+  startedAt               DateTime
+  completedAt             DateTime                 @default(now())
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+
+  @@unique([userId, clientKey])
+  @@index([userId, completedAt])
+  @@index([studyPlanId, studyPlanTaskKey, completedAt])
+}
+
+model ExamPaper {
+  id          String   @id @default(cuid())
+  title       String
+  duration    Int
+  totalScore  Int      @default(100)
+  questionIds Json
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Attempt {
+  id                String           @id @default(cuid())
+  userId            String
+  questionId        String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question          Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  practiceSessionId String?
+  practiceSession   PracticeSession? @relation(fields: [practiceSessionId], references: [id], onDelete: SetNull)
+  selected          Int?
+  correct           Boolean
+  mode              AttemptMode      @default(PRACTICE)
+  duration          Int              @default(0)
+  createdAt         DateTime         @default(now())
+
+  @@unique([practiceSessionId, questionId])
+  @@index([userId, createdAt])
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, questionId])
+}

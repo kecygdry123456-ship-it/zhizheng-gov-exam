@@ -1,0 +1,7 @@
+ALTER TABLE "ExamSession"
+ADD COLUMN "pausedAt" TIMESTAMP(3),
+ADD COLUMN "pausedDurationSeconds" INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE "PracticeSession"
+ADD COLUMN "pausedAt" TIMESTAMP(3),
+ADD COLUMN "pausedDurationSeconds" INTEGER NOT NULL DEFAULT 0;

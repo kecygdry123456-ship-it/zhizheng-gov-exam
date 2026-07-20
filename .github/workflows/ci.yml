@@ -1,0 +1,41 @@
+name: quality-check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: gov_exam_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d gov_exam_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/gov_exam_test?schema=public
+      POSTGRES_PASSWORD: postgres
+      SESSION_SECRET: ci-session-secret-for-automated-checks
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run db:seed
+      - run: npm test
+      - run: docker compose --env-file .env.production.example config
+      - run: docker build --target migration -t zhizheng-gov-exam-migration:ci .
+      - run: docker build --target runner -t zhizheng-gov-exam:ci .
